@@ -11,7 +11,7 @@ module.exports = {
   CHAINS: ['bsc', 'ethereum', 'base', 'solana'],
   
   // Scan interval
-  SCAN_INTERVAL: 15 * 60 * 1000, // 15 minutes
+  SCAN_INTERVAL: 60 * 60 * 1000, // 1 hour
   
   // Anti-scam thresholds
   SAFETY: {

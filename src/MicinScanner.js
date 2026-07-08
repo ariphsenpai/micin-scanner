@@ -10,13 +10,17 @@
 const axios = require('axios');
 const { TelegramNotifier } = require('./TelegramNotifier');
 const config = require('../config');
+const { GMGNSource } = require('./GMGNSource');
+const { ChecklistAnalyzer } = require('./ChecklistAnalyzer');
 
 class MicinScanner {
   constructor() {
     this.notifier = new TelegramNotifier(config.BOT_TOKEN, config.TELEGRAM_USER_ID);
-    this.sentTokens = new Map(); // key -> timestamp, for 24h anti-duplicate
+    this.checklist = new ChecklistAnalyzer();
+    this.sentTokens = new Map();
     this.MAX_AGE_HOURS = 168; // 7 days
-    this.DEDUP_WINDOW_MS = 6 * 60 * 60 * 1000; // 6 hour anti-duplicate
+    this.DEDUP_WINDOW_MS = 6 * 60 * 60 * 1000; // 6h anti-duplicate
+    this.gmgn = new GMGNSource();
   }
 
   fmt(num) {
@@ -95,6 +99,7 @@ class MicinScanner {
       if (volRatio > 2) score += 15;
       else if (volRatio > 1) score += 10;
       else if (volRatio > 0.3) score += 5;
+      else if (volRatio < 0.05) score -= 10;
     }
 
     if (priceChange > 50) score += 10;
@@ -112,7 +117,41 @@ class MicinScanner {
       if (recentRatio > 0.5) score += 10;
     }
 
+    const flashSignals = this.detectFlashPump(token);
+    if (flashSignals.count >= 2) {
+      score -= 25;
+      token.flashPumpRisk = true;
+      token.flashPumpSignals = flashSignals.signals;
+    } else if (flashSignals.count === 1) {
+      score -= 10;
+      token.flashPumpRisk = false;
+      token.flashPumpSignals = flashSignals.signals;
+    }
+
+    // Early token bonus (<24h) - higher risk tolerance but still require some safety
+    const ageHours = token.createdAt ? (Date.now() - token.createdAt) / (1000 * 60 * 60) : 999;
+    if (ageHours < 24) score += 5;
+
     return Math.max(0, Math.min(100, score));
+  }
+
+  detectFlashPump(token) {
+    const signals = [];
+    const liq = token.liquidity || 0;
+    const mcap = token.mcap || 0;
+    const vol24 = token.volume24h || 0;
+    const vol6 = token.volume6h || 0;
+    const txns = token.txns24h || 0;
+    const change = token.priceChange24h || 0;
+
+    if (vol24 > 0 && liq > 0 && vol24 / liq > 20) signals.push('Volume >20x Liquidity');
+    if (mcap > 0 && liq > 0 && liq / mcap < 0.05) signals.push('Liq/MCap <5%');
+    if (vol6 > 0 && vol24 > 0 && vol6 / vol24 > 0.85) signals.push('>85% volume in 6h');
+    if (change > 150) signals.push('24h change >150%');
+    if (txns < 30 && vol24 > 20000) signals.push('Low tx count + high volume');
+    if (vol24 > 100000 && mcap < 20000) signals.push('High volume on tiny MCap');
+
+    return { count: signals.length, signals };
   }
 
   // === SOURCE 1: DexScreener — latest token profiles + boosted ===
@@ -433,6 +472,14 @@ class MicinScanner {
         ? `https://rugcheck.xyz/tokens/${token.address}`
         : `https://gopluslabs.io/token-security/${token.chain === 'bsc' ? 56 : token.chain === 'base' ? 8453 : 1}/${token.address}`;
 
+      // === CHECKLIST 7-POINT (on-chain screening) ===
+      try {
+        token.checklist = await this.checklist.analyze(token);
+      } catch (e) {
+        console.warn(`  checklist error ${token.symbol}:`, e.message);
+        token.checklist = null;
+      }
+
       valid.push(token);
       this.markSent(key);
     }
@@ -450,25 +497,46 @@ class MicinScanner {
     const changeEmoji = token.priceChange24h >= 0 ? '📈' : '📉';
     const changeStr = token.priceChange24h >= 0 ? `+${token.priceChange24h.toFixed(1)}%` : `${token.priceChange24h.toFixed(1)}%`;
 
-    let jepeBars = '';
-    const filled = Math.floor(jp / 10);
-    for (let i = 0; i < 10; i++) jepeBars += i < filled ? '█' : '░';
-
     let msg = '';
     msg += '🚨 <b>MICIN ALERT — NEW GEM</b>\n';
     msg += '────────────────────────\n';
-    msg += `🆕 <b>${this.escape(token.name)}</b> <code>($${this.escape(token.symbol)})</code>\n`;
+    msg += `🆕 <b>${this.escape(token.name)}</b> <code>(${this.escape(token.symbol)})</code>\n`;
     msg += `${chainBadge} │ ${token.source}\n`;
     msg += `📍 <code>${token.address}</code>\n\n`;
     msg += `💰 MCap: <b>${this.fmt(token.mcap)}</b> │ 💧 Liq: <b>${this.fmt(token.liquidity)}</b>\n`;
     msg += `📊 Vol 24h: <b>${this.fmt(token.volume24h)}</b> │ ${changeEmoji} ${changeStr}\n`;
     msg += `🔊 Txns 24h: <b>${token.txns24h || 'N/A'}</b>\n\n`;
-    msg += `🚀 JEPE Potential: <b>${jp}/100</b>\n  <code>${jepeBars}</code>\n\n`;
+    msg += `🚀 JEPE Potential: <b>${jp}/100</b>\n`;
+    const barCount = Math.floor(jp / 10);
+    let jepeBars = '';
+    for (let i = 0; i < 10; i++) jepeBars += i < barCount ? '█' : '░';
+    msg += `  <code>${jepeBars}</code>\n\n`;
     msg += `🛡️ Safety: <b>${s.score}/100</b>`;
     if (s.warnings.length > 0) msg += `\n⚠️ ${this.escape(s.warnings.join(', '))}`;
     if (s.issues.length > 0) msg += `\n❌ ${this.escape(s.issues.join(', '))}`;
     else msg += `\n✅ No critical issues`;
     msg += '\n\n';
+    if (token.flashPumpRisk) {
+      msg += `⚠️ <b>FLASH PUMP RISK DETECTED</b>\n`;
+      msg += `   ${this.escape((token.flashPumpSignals || []).join('\n   '))}\n\n`;
+    } else if (token.flashPumpSignals?.length) {
+      msg += `⚡ <b>Pump signals:</b> ${this.escape(token.flashPumpSignals.join(' | '))}\n\n`;
+    }
+    const ageHours = token.createdAt ? ((Date.now() - token.createdAt) / (1000 * 60 * 60)).toFixed(1) : '?';
+
+    // === PAKAI 7-POINT CHECKLIST FORMAT (jika ada) ===
+    if (token.checklist) {
+      const report = this.notifier.buildChecklistReport(token, token.checklist);
+      try {
+        await this.notifier.sendMessage(report);
+        console.log(`  SENT ${token.symbol} (${token.chain}) risk=${token.checklist.riskLevel} (${token.checklist.riskScore})`);
+      } catch (e) {
+        console.error('Send error:', e.message);
+      }
+      return;
+    }
+
+    msg += `⏱️ Age: <b>${ageHours}h</b> │ Source: ${token.source}\n`;
     msg += `<a href="${token.dexUrl}">🔗 Chart</a>`;
     if (token.source === 'pumpfun') msg += ` │ <a href="https://pump.fun/${token.address}">🔗 PumpFun</a>`;
     msg += ` │ <a href="${token.rugUrl}">🔗 Security</a>`;
@@ -489,11 +557,12 @@ class MicinScanner {
     // Clean sent tokens older than 6 hours
     this.cleanSentTokens();
 
-    const [dexTokens, pumpTokens, trendingTokens, gainerTokens] = await Promise.allSettled([
+    const [dexTokens, pumpTokens, trendingTokens, gainerTokens, gmgnTokens] = await Promise.allSettled([
       this.fetchDexScreener(),
       this.fetchPumpFun(),
       this.fetchDexTrending(),
       this.fetchDexGainers(),
+      this.gmgn.fetchTokens(),
     ]);
 
     const allTokens = [
@@ -501,6 +570,7 @@ class MicinScanner {
       ...(pumpTokens.status === 'fulfilled' ? pumpTokens.value : []),
       ...(trendingTokens.status === 'fulfilled' ? trendingTokens.value : []),
       ...(gainerTokens.status === 'fulfilled' ? gainerTokens.value : []),
+      ...(gmgnTokens.status === 'fulfilled' ? gmgnTokens.value : []),
     ];
 
     console.log(`[Scanner] Raw: ${allTokens.length} tokens`);

@@ -32,33 +32,59 @@ class MicinScanner {
    */
   async fetchFromDexScreener(query) {
     try {
+      console.log(`[fetchFromDexScreener] Query: "${query}"`);
+      
       // Try search by query first
-      const searchUrl = `${config.DEXSCREENER.SEARCH}?query=${encodeURIComponent(query)}`;
-      const response = await axios.get(searchUrl, { timeout: 10000 });
+      const searchUrl = `${config.DEXSCREENER.SEARCH}?q=${encodeURIComponent(query)}`;
+      console.log(`[fetchFromDexScreener] Search URL: ${searchUrl}`);
+      
+      const response = await axios.get(searchUrl, { 
+        timeout: 15000,
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      console.log(`[fetchFromDexScreener] Search response status: ${response.status}`);
+      console.log(`[fetchFromDexScreener] Pairs found: ${response.data?.pairs?.length || 0}`);
       
       if (response.data && response.data.pairs && response.data.pairs.length > 0) {
+        // Filter pairs with decent liquidity (> $1000) and return the best one
+        const validPairs = response.data.pairs.filter(p => 
+          p.liquidity?.usd > 1000 && p.dexId !== 'robinhood'
+        );
+        
+        if (validPairs.length > 0) {
+          // Sort by liquidity descending and return the highest
+          validPairs.sort((a, b) => b.liquidity.usd - a.liquidity.usd);
+          console.log(`[fetchFromDexScreener] Selected best pair from ${validPairs.length} valid pairs`);
+          return validPairs[0];
+        }
+        
+        // Fallback to first pair if no valid pairs found
         return response.data.pairs[0];
       }
       
       // If query looks like an address, try direct pair lookup
       if (query.startsWith('0x') || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(query)) {
+        console.log(`[fetchFromDexScreener] Trying direct pair lookup for address`);
         // Try common chains
         for (const chain of ['ethereum', 'bsc', 'base', 'solana']) {
           try {
             const pairUrl = `https://api.dexscreener.com/latest/dex/pairs/${chain}/${query}`;
             const pairResp = await axios.get(pairUrl, { timeout: 10000 });
-            if (pairResp.data && pairResp.data.pairs && pairResp.data.pairs.length > 0) {
-              return pairResp.data.pairs[0];
+            if (pairResp.data && pairResp.data.pair) {
+              console.log(`[fetchFromDexScreener] Found pair on ${chain}`);
+              return pairResp.data.pair;
             }
           } catch (e) {
-            // Continue to next chain
+            console.log(`[fetchFromDexScreener] Chain ${chain} failed: ${e.message}`);
           }
         }
       }
       
+      console.log(`[fetchFromDexScreener] No pairs found`);
       return null;
     } catch (err) {
-      console.error('DexScreener error:', err.message);
+      console.error('DexScreener error:', err.message, err.response?.data);
       return null;
     }
   }

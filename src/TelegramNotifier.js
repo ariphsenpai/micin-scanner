@@ -96,10 +96,10 @@ class TelegramNotifier {
     // SECTION 3: Tax & Trading Rules
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
     report += '💰 <b>TAX & TRADING RULES</b>\n';
-    if (buyTax > 0 || sellTax > 0) {
-      report += `   <b>Buy tax:</b> ${buyTax}%\n`;
-      report += `   <b>Sell tax:</b> ${sellTax}%\n`;
-      report += `   <b>Tax can change?</b> ${taxCanChange ? 'YES ❌' : 'NO ✅'}\n`;
+    if (token.buyTax > 0 || token.sellTax > 0) {
+      report += `   <b>Buy tax:</b> ${token.buyTax}%\n`;
+      report += `   <b>Sell tax:</b> ${token.sellTax}%\n`;
+      report += `   <b>Tax can change?</b> ${token.taxCanChange ? 'YES ❌' : 'NO ✅'}\n`;
     } else {
       report += `   <b>Buy/Sell Tax:</b> UNKNOWN (gmgn.ai blocked) ⚠️\n`;
     }
@@ -108,10 +108,10 @@ class TelegramNotifier {
     // SECTION 4: Holder Distribution
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
     report += '📊 <b>HOLDER DISTRIBUTION</b>\n';
-    if (top10Percent > 0) {
-      report += `   <b>Top 10 %:</b> ${top10Percent.toFixed(1)}%\n`;
-      report += `   <b>Deployer holds?</b> ${deployerStillHolds ? (deployerHoldPercent ? deployerHoldPercent.toFixed(1) + '%' : 'YES') : 'NO'}\n`;
-      report += `   <b>Wallet clusters?</b> ${hasWalletClusters ? 'YES ⚠️' : 'NO ✅'}\n`;
+    if (token.top10Percent > 0) {
+      report += `   <b>Top 10 %:</b> ${token.top10Percent.toFixed(1)}%\n`;
+      report += `   <b>Deployer holds?</b> ${token.deployerStillHolds ? (token.deployerHoldPercent ? token.deployerHoldPercent.toFixed(1) + '%' : 'YES') : 'NO'}\n`;
+      report += `   <b>Wallet clusters?</b> ${token.hasWalletClusters ? 'YES ⚠️' : 'NO ✅'}\n`;
     } else {
       report += `   <b>Top 10 %:</b> UNKNOWN (gmgn.ai blocked) ⚠️\n`;
     }
@@ -120,29 +120,29 @@ class TelegramNotifier {
     // SECTION 5: Sniper & Bot Detection
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
     report += '🔫 <b>SNIPER & BOT DETECTION</b>\n';
-    if (sniperAlert) {
-      report += `   <b>⚠️ EARLY SNIPER ALERT!</b> (${sniperDetails})\n`;
+    if (token.sniperAlert) {
+      report += `   <b>⚠️ EARLY SNIPER ALERT!</b> (${token.sniperDetails || 'N/A'})\n`;
     } else {
-      report += `   <b>Sniper in block 0-2?</b> ${sniperAlert ? 'YES ❌' : 'NO ✅'}\n`;
+      report += `   <b>Sniper in block 0-2?</b> ${token.sniperAlert ? 'YES ❌' : 'NO ✅'}\n`;
     }
-    report += `   <b>Max TX manipulation?</b> ${maxTxManipulation ? 'YES ❌' : 'NO ✅'}\n`;
-    report += `   <b>Anti-bot mechanism?</b> ${hasAntiBot ? 'YES ⚠️' : 'NO'}\n`;
+    report += `   <b>Max TX manipulation?</b> ${token.maxTxManipulation ? 'YES ❌' : 'NO ✅'}\n`;
+    report += `   <b>Anti-bot mechanism?</b> ${token.hasAntiBot ? 'YES ⚠️' : 'NO'}\n`;
     report += '\n';
 
     // SECTION 6: Deployer History
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
     report += '👷 <b>DEPLOYER HISTORY</b>\n';
-    report += `   <b>Deployer:</b> <code>${this.escape(deployerAddress || 'UNKNOWN')}</code>\n`;
-    report += `   <b>History:</b> ${deployerHistory || 'N/A'}\n`;
-    report += `   <b>Fresh wallet?</b> ${isFreshWallet ? 'YES ⚠️' : 'NO'}\n`;
+    report += `   <b>Deployer:</b> <code>${this.escape(token.deployerAddress || 'UNKNOWN')}</code>\n`;
+    report += `   <b>History:</b> ${token.deployerHistory || 'N/A'}\n`;
+    report += `   <b>Fresh wallet?</b> ${token.isFreshWallet ? 'YES ⚠️' : 'NO'}\n`;
     report += '\n';
 
     // SECTION 7: Social & Narrative
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
     report += '🌐 <b>SOCIAL & NARRASI</b>\n';
-    report += `   <b>Team:</b> ${teamInfo || 'ANONIM'}\n`;
-    report += `   <b>Website/docs:</b> ${hasWebsite ? 'YES ✅' : 'NO ❌'}\n`;
-    report += `   <b>Socials:</b> ${socials || 'N/A'}\n`;
+    report += `   <b>Team:</b> ${token.teamInfo || 'ANONIM'}\n`;
+    report += `   <b>Website/docs:</b> ${token.hasWebsite ? 'YES ✅' : 'NO ❌'}\n`;
+    report += `   <b>Socials:</b> ${token.socials || 'N/A'}\n`;
     report += '\n';
 
     // SCORE & SUMMARY

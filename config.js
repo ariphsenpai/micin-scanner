@@ -9,6 +9,10 @@ module.exports = {
   
   // Chains to scan
   CHAINS: ['solana'],
+
+  // Proxy (isi kalau punya VPS/residential proxy buat bypass GMGN/RugCheck block)
+  // Format: 'http://host:port' atau 'http://user:pass@host:port'
+  PROXY: process.env.MICIN_PROXY || '',
   
   // Scan interval
   SCAN_INTERVAL: 60 * 60 * 1000, // 1 hour

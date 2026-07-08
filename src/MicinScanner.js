@@ -427,9 +427,11 @@ class MicinScanner {
   async filterAndValidate(tokens) {
     const valid = [];
     const seen = new Set(); // per-cycle dedup only
+    const allowedChains = (config.CHAINS || []).map(c => c.toLowerCase());
 
     for (const token of tokens) {
       if (!token.address || !token.chain) continue;
+      if (allowedChains.length && !allowedChains.includes(token.chain.toLowerCase())) continue;
       const key = `${token.chain}:${token.address}`;
       if (seen.has(key)) continue; // dedup within this cycle
       seen.add(key);

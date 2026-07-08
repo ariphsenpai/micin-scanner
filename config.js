@@ -8,7 +8,7 @@ module.exports = {
   MAX_LIQUIDITY: 50000,      // Max $50K liquidity (still low-cap)
   
   // Chains to scan
-  CHAINS: ['bsc', 'ethereum', 'base', 'solana'],
+  CHAINS: ['solana'],
   
   // Scan interval
   SCAN_INTERVAL: 60 * 60 * 1000, // 1 hour

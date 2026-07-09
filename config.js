@@ -1,5 +1,5 @@
 module.exports = {
-  BOT_TOKEN: process.env.BOT_TOKEN || '8962752658:***',
+  BOT_TOKEN: process.env.BOT_TOKEN || '8962752658:AAFFlcPbpBbu6V6S-S6_62Zc4ze3Y4r7eaA',
   TELEGRAM_USER_ID: process.env.TELEGRAM_USER_ID || '5375775335',
   MODE: process.env.ANALYST_MODE || 'analyst', // 'analyst' atau 'scanner'
   

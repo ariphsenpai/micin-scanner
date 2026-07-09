@@ -81,6 +81,12 @@ async function processToken(pair) {
     const token = scanner.parsePair(pair);
     const analysis = scanner.evaluateToken(token);
     
+    // SKIP: risk score di bawah 70% (MEDIUM/HIGH/EXTREME = terlalu riskan)
+    if (analysis.riskScore < 70) {
+      console.log(`[Scanner] SKIP (score ${analysis.riskScore}%): ${token.name} (${token.symbol}) - ${analysis.riskLevel}`);
+      return;
+    }
+    
     // Kirim alert
     await scanner.sendAlert(token, analysis);
     

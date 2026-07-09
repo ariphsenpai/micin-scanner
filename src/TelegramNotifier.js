@@ -1,5 +1,5 @@
 /**
- * Telegram Notifier v6 — Output format untuk Micin Analyst Bot
+ * Telegram Notifier v5 — Output format untuk Micin Analyst Bot
  * Format: Terstruktur checklist + red/green flags + skor risiko
  */
 
@@ -58,19 +58,16 @@ class TelegramNotifier {
     report += '────────────────────────────────────\n';
     report += `<b>INPUT:</b> ${inputs.join(', ')}\n`;
     report += `<b>Token:</b> ${this.escape(name)} (<code>${this.escape(symbol)}</code>)\n`;
-    report += `${chainBadge} │ <code>${this.escape(address)}</code>\n`;
-    report += `📊 <b>Price:</b> $${price?.toFixed(8) || 'N/A'} │ <b>MCap:</b> ${this.fmt(mcap)} │ <b>Liq:</b> ${this.fmt(liquidity)}\n\n`;
+    report += `${chainBadge} │ <code>${this.escape(address)}</code>\n\n`;
 
     // SECTION 1: Liquidity Lock
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
-    report += '🔒 <b>LIQUIDITY LOCK</b>\n';
-    if (token.lpLocked === true) {
+    report += '✅ <b>LIQUIDITY LOCK</b>\n';
+    if (analysis.lpLocked) {
       report += `   <b>✔️ Di-lock?</b> YES\n`;
-      report += `   <b>Platform:</b> ${token.lpLockPlatform || 'Manual burn'}\n`;
-      report += `   <b>Duration:</b> ${token.lpLockDuration || 'N/A'}\n`;
-      report += `   <b>Locked %:</b> ${token.lpLockedPercent ? token.lpLockedPercent.toFixed(1) : 'N/A'}%\n`;
-    } else if (token.lpLocked === 'unknown') {
-      report += `   <b>❌ Di-lock?</b> UNKNOWN (gmgn.ai blocked)\n`;
+      report += `   <b>Platform:</b> ${analysis.lpLockPlatform || 'Manual burn'}\n`;
+      report += `   <b>Duration:</b> ${analysis.lpLockDuration || 'N/A'}\n`;
+      report += `   <b>Locked %:</b> ${analysis.lpLockedPercent ? analysis.lpLockedPercent.toFixed(1) : 'N/A'}%\n`;
     } else {
       report += `   <b>❌ Di-lock?</b> NO / UNKNOWN\n`;
     }
@@ -78,76 +75,62 @@ class TelegramNotifier {
 
     // SECTION 2: Ownership & Contract
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
-    report += '👤 <b>OWNERSHIP & CONTRACT</b>\n';
-    if (token.ownershipRenounced === true) {
-      report += `   <b>Ownership renounced?</b> YES ✅\n`;
-    } else if (token.ownershipRenounced === 'unknown') {
-      report += `   <b>Ownership renounced?</b> UNKNOWN (gmgn.ai blocked) ⚠️\n`;
-    } else {
-      report += `   <b>Ownership renounced?</b> NO ❌\n`;
-    }
-    report += `   <b>Mint/hidden func?</b> ${token.hasHiddenFunc ? 'YES ❌' : 'NO ✅'}\n`;
-    report += `   <b>Verified?</b> ${token.verified ? 'YES ✅' : 'NO ❌'}\n`;
-    if (token.hasHiddenFee) {
-      report += `   <b>Hidden fee?</b> YES ❌ (${token.hiddenFeeDetails})\n`;
+    report += '✅ <b>OWNERSHIP & CONTRACT</b>\n';
+    report += `   <b>Ownership renounced?</b> ${analysis.ownershipRenounced ? 'YES ✅' : 'NO ❌'}\n`;
+    report += `   <b>Mint/hidden func?</b> ${analysis.hasHiddenFunc ? 'YES ❌' : 'NO ✅'}\n`;
+    report += `   <b>Verified?</b> ${analysis.verified ? 'YES ✅' : 'NO ❌'}\n`;
+    if (analysis.hasHiddenFee) {
+      report += `   <b>Hidden fee?</b> YES ❌ (${analysis.hiddenFeeDetails})\n`;
     }
     report += '\n';
 
     // SECTION 3: Tax & Trading Rules
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
-    report += '💰 <b>TAX & TRADING RULES</b>\n';
-    if (token.buyTax > 0 || token.sellTax > 0) {
-      report += `   <b>Buy tax:</b> ${token.buyTax}%\n`;
-      report += `   <b>Sell tax:</b> ${token.sellTax}%\n`;
-      report += `   <b>Tax can change?</b> ${token.taxCanChange ? 'YES ❌' : 'NO ✅'}\n`;
-    } else {
-      report += `   <b>Buy/Sell Tax:</b> UNKNOWN (gmgn.ai blocked) ⚠️\n`;
-    }
+    report += '✅ <b>TAX & TRADING RULES</b>\n';
+    report += `   <b>Buy tax:</b> ${buyTax || 0}%\n`;
+    report += `   <b>Sell tax:</b> ${sellTax || 0}%\n`;
+    report += `   <b>Tax can change?</b> ${analysis.taxCanChange ? 'YES ❌' : 'NO ✅'}\n`;
     report += '\n';
 
     // SECTION 4: Holder Distribution
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
-    report += '📊 <b>HOLDER DISTRIBUTION</b>\n';
-    if (token.top10Percent > 0) {
-      report += `   <b>Top 10 %:</b> ${token.top10Percent.toFixed(1)}%\n`;
-      report += `   <b>Deployer holds?</b> ${token.deployerStillHolds ? (token.deployerHoldPercent ? token.deployerHoldPercent.toFixed(1) + '%' : 'YES') : 'NO'}\n`;
-      report += `   <b>Wallet clusters?</b> ${token.hasWalletClusters ? 'YES ⚠️' : 'NO ✅'}\n`;
-    } else {
-      report += `   <b>Top 10 %:</b> UNKNOWN (gmgn.ai blocked) ⚠️\n`;
-    }
+    report += '✅ <b>HOLDER DISTRIBUTION</b>\n';
+    report += `   <b>Top 10 %:</b> ${analysis.top10Percent ? analysis.top10Percent.toFixed(1) : 'N/A'}%\n`;
+    report += `   <b>Deployer holds?</b> ${analysis.deployerStillHolds ? (analysis.deployerHoldPercent ? analysis.deployerHoldPercent.toFixed(1) + '%' : 'YES') : 'NO'}\n`;
+    report += `   <b>Wallet clusters?</b> ${analysis.hasWalletClusters ? 'YES ⚠️' : 'NO ✅'}\n`;
     report += '\n';
 
     // SECTION 5: Sniper & Bot Detection
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
-    report += '🔫 <b>SNIPER & BOT DETECTION</b>\n';
-    if (token.sniperAlert) {
-      report += `   <b>⚠️ EARLY SNIPER ALERT!</b> (${token.sniperDetails || 'N/A'})\n`;
+    report += '✅ <b>SNIPER & BOT DETECTION</b>\n';
+    if (analysis.sniperAlert) {
+      report += `   <b>⚠️ EARLY SNIPER ALERT!</b> (${analysis.sniperDetails})\n`;
     } else {
-      report += `   <b>Sniper in block 0-2?</b> ${token.sniperAlert ? 'YES ❌' : 'NO ✅'}\n`;
+      report += `   <b>Sniper in block 0-2?</b> NO ✅\n`;
     }
-    report += `   <b>Max TX manipulation?</b> ${token.maxTxManipulation ? 'YES ❌' : 'NO ✅'}\n`;
-    report += `   <b>Anti-bot mechanism?</b> ${token.hasAntiBot ? 'YES ⚠️' : 'NO'}\n`;
+    report += `   <b>Max TX manipulation?</b> ${analysis.maxTxManipulation ? 'YES ❌' : 'NO ✅'}\n`;
+    report += `   <b>Anti-bot mechanism?</b> ${analysis.hasAntiBot ? 'YES ⚠️' : 'NO'}\n`;
     report += '\n';
 
     // SECTION 6: Deployer History
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
-    report += '👷 <b>DEPLOYER HISTORY</b>\n';
-    report += `   <b>Deployer:</b> <code>${this.escape(token.deployerAddress || 'UNKNOWN')}</code>\n`;
-    report += `   <b>History:</b> ${token.deployerHistory || 'N/A'}\n`;
-    report += `   <b>Fresh wallet?</b> ${token.isFreshWallet ? 'YES ⚠️' : 'NO'}\n`;
+    report += '✅ <b>DEPLOYER HISTORY</b>\n';
+    report += `   <b>Deployer:</b> <code>${this.escape(analysis.deployerAddress || 'UNKNOWN')}</code>\n`;
+    report += `   <b>History:</b> ${analysis.deployerHistory || 'N/A'}\n`;
+    report += `   <b>Fresh wallet?</b> ${analysis.isFreshWallet ? 'YES ⚠️' : 'NO'}\n`;
     report += '\n';
 
     // SECTION 7: Social & Narrative
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
-    report += '🌐 <b>SOCIAL & NARRASI</b>\n';
-    report += `   <b>Team:</b> ${token.teamInfo || 'ANONIM'}\n`;
-    report += `   <b>Website/docs:</b> ${token.hasWebsite ? 'YES ✅' : 'NO ❌'}\n`;
-    report += `   <b>Socials:</b> ${token.socials || 'N/A'}\n`;
+    report += '✅ <b>SOCIAL & NARASI</b>\n';
+    report += `   <b>Team:</b> ${analysis.teamInfo || 'ANONIM'}\n`;
+    report += `   <b>Website/docs:</b> ${analysis.hasWebsite ? 'YES ✅' : 'NO ❌'}\n`;
+    report += `   <b>Socials:</b> ${analysis.socials || 'N/A'}\n`;
     report += '\n';
 
     // SCORE & SUMMARY
     report += '<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n';
-    report += `📊 <b>SKOR RISIKO:</b> <b>${riskLevel}</b> (${riskScore}/100)\n`;
+    report += '📊 <b>SKOR RISIKO:</b> <b>' + riskLevel + '</b> (' + riskScore + '/100)\n';
 
     if (greenFlags.length > 0) {
       report += '\n<b>✅ Green Flags (' + greenFlags.length + '):</b>\n';
@@ -172,7 +155,7 @@ class TelegramNotifier {
     report += 'Lakukan DYOR lebih lanjut sebelum membeli.\n\n';
 
     report += '────────────────────────────────────\n';
-    report += `<a href="${token.dexUrl || 'https://dexscreener.com'}">🔗 Chart (DexScreener)</a>`;
+    report += `<a href="${token.dexUrl || 'https://gmgn.ai'}">🔗 Chart (GMGN)</a>`;
     if (source === 'pumpfun') {
       report += ` │ <a href="https://pump.fun/${address}">🔗 PumpFun</a>`;
     }

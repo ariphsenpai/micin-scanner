@@ -1,37 +1,30 @@
-const TelegramBot = require('node-telegram-bot-api');
 const { MicinScanner } = require('./src/MicinScanner');
 const config = require('./config');
 
-const bot = new TelegramBot(config.BOT_TOKEN, { polling: true });
-const scanner = new MicinScanner();
-
-console.log('🚀 Micin Analyst Bot started');
-console.log('Mode: ANALYST — kirim token untuk evaluasi');
-
-bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, '👋 Halo! Kirim contract address, nama token, atau link chart untuk evaluasi.\n\nContoh:\n• 0x1234...abcd\n• PEPE\n• https://dexscreener.com/solana/abc123');
-});
-
-bot.on('message', async (msg) => {
-  const chatId = msg.chat.id;
-  const text = msg.text;
+async function main() {
+  const scanner = new MicinScanner();
   
-  // Skip commands and non-text messages
-  if (!text || text.startsWith('/')) return;
-  if (msg.reply_to_message) return; // Skip replies
-  
-  try {
-    // Send "typing" indicator
-    bot.sendChatAction(chatId, 'typing');
-    
-    // Analyze the token
-    const result = await scanner.analyzeToken(chatId, text);
-    
-    if (!result.success) {
-      bot.sendMessage(chatId, `❌ ${result.error || 'Gagal menganalisis token. Coba lagi.'}`);
+  if (process.argv.includes('--once')) {
+    const tokenInput = process.argv[process.argv.indexOf('--once') + 1];
+    if (!tokenInput) {
+      console.error('Usage: node scanner.js --once <token_address_or_url>');
+      process.exit(1);
     }
-  } catch (err) {
-    console.error('❌ Error:', err.message);
-    bot.sendMessage(chatId, '❌ Error: ' + err.message.substring(0, 200));
+    const result = await scanner.analyzeToken('test', tokenInput);
+    console.log(`\n✅ Analysis complete for: ${tokenInput}`);
+    console.log(`Risk Level: ${result.analysis.riskLevel} (${result.analysis.riskScore}/100)`);
+    process.exit(0);
+  } else {
+    console.log('🚀 Micin Analyst Bot started');
+    console.log('Mode: ANALYST — kirim token ke bot untuk evaluasi');
+    console.log('Kirim ke Telegram: contract address, nama token, atau link gmgn.ai');
+    
+    // Keep alive (no scanning loop in analyst mode)
+    setInterval(() => {}, 10000);
   }
+}
+
+main().catch(err => {
+  console.error('❌ Fatal:', err);
+  process.exit(1);
 });
